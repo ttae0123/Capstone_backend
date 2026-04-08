@@ -3,15 +3,14 @@ package com.example.capstone_backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-
 @Entity
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString
-@Table(name = "cpu")
-public class Cpu {
+@Table(name = "power")
+public class Power {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,13 +22,9 @@ public class Cpu {
     @Column(nullable = false)
     private Long price;
 
-    @Column(name = "socket_type", columnDefinition = "TEXT")
-    private String socketType;
+    @Column(columnDefinition = "TEXT")
+    private String size;
 
-    @Column(name = "memory_type", columnDefinition = "TEXT")
-    private String memoryType;
-
-    @Column(name = "bench_score")
-    private Long benchScore;
-
+    @Column
+    private Long wattage;
 }

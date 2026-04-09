@@ -2,7 +2,7 @@ package com.example.capstone_backend.dto;
 
 import java.util.List;
 
-public class EstimateResponse {
+public class ResponseDTO {
 
     // 전체 응답: 여러 개의 추천 조합을 담는 리스트
     public record ResultList(

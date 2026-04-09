@@ -1,6 +1,6 @@
 package com.example.capstone_backend.controller;
 
-import com.example.capstone_backend.dto.EstimateResponse;
+import com.example.capstone_backend.dto.ResponseDTO;
 import com.example.capstone_backend.dto.RequestDTO;
 import com.example.capstone_backend.service.EstimateService;
 import lombok.RequiredArgsConstructor;
@@ -15,11 +15,11 @@ public class EstimateController {
     private final EstimateService estimateService;
 
     @PostMapping("/recommend")
-    public ResponseEntity<EstimateResponse.ResultList> getRecommendations(
+    public ResponseEntity<ResponseDTO.ResultList> getRecommendations(
             @RequestBody RequestDTO.EstimateRequest request) {
 
         // 서비스 호출하여 결과물 생성
-        EstimateResponse.ResultList response = estimateService.generateRecommendations(request);
+        ResponseDTO.ResultList response = estimateService.generateRecommendations(request);
 
         return ResponseEntity.ok(response);
     }

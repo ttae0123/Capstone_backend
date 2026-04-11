@@ -3,18 +3,18 @@ package com.example.capstone_backend.service;
 
 import com.example.capstone_backend.dto.ResponseDTO;
 import com.example.capstone_backend.dto.RequestDTO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class EstimateService {
 
     public ResponseDTO.ResultList generateRecommendations(RequestDTO.EstimateRequest request) {
-        // 실제 구현 시에는 여기서 Repository를 통해 MariaDB에서 부품을 조회합니다.
-        // 현재는 테스트를 위해 하드코딩된 데이터를 반환합니다.
 
-        // 1번 조합: 가성비 세팅
+        //하드코딩으로 테스트
         ResponseDTO.Recommendation rec1 = new ResponseDTO.Recommendation(
                 "최고의 가성비 조합",
                 850000L,

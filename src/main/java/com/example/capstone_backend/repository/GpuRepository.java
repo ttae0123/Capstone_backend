@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface GpuRepository extends JpaRepository<Gpu, Long> {
     List<Gpu> findByPriceLessThanEqual(Long price);
+
+    List<Gpu> findTop10ByPriceLessThanEqualOrderByPriceDesc(long gpuBudget);
 }

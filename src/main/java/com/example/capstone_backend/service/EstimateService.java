@@ -18,60 +18,90 @@ public class EstimateService {
     private final CpuRepository cpuRepository;
     private final GpuRepository gpuRepository;
     private final RamRepository ramRepository;
+    private final SsdRepository ssdRepository;
+    private final MainboardRepository mainboardRepository;
+    private final PowerRepository powerRepository;
+    private final CaseRepository caseRepository;
 
     public ResponseDTO.ResultList generateRecommendations(RequestDTO.EstimateRequest request) {
 
         Long budget = request.budget();
 
-        // 간단하게 비율 나눔 (CPU 30%, GPU 50%, RAM 20%)
-        Long cpuBudget = (long)(budget * 0.3);
-        Long gpuBudget = (long)(budget * 0.5);
-        Long ramBudget = (long)(budget * 0.2);
+        // 1️⃣ 예산 분배 (현실적인 비율)
+        long cpuBudget = (long)(budget * 0.25);
+        long gpuBudget = (long)(budget * 0.35);
+        long ramBudget = (long)(budget * 0.15);
+        long ssdBudget = (long)(budget * 0.10);
+        long mbBudget  = (long)(budget * 0.10);
+        long powerBudget = (long)(budget * 0.05);
 
-        // DB 조회
-        List<Cpu> cpus = cpuRepository.findByPriceLessThanEqual(cpuBudget);
-        List<Gpu> gpus = gpuRepository.findByPriceLessThanEqual(gpuBudget);
-        List<Ram> rams = ramRepository.findByPriceLessThanEqual(ramBudget);
+        // 2️⃣ 후보군 조회 (Top N 제한 중요!)
+        List<Cpu> cpus = cpuRepository.findTop10ByPriceLessThanEqualOrderByPriceDesc(cpuBudget);
+        List<Gpu> gpus = gpuRepository.findTop10ByPriceLessThanEqualOrderByPriceDesc(gpuBudget);
+        List<Ram> rams = ramRepository.findTop5ByPriceLessThanEqualOrderByPriceDesc(ramBudget);
+        List<Ssd> ssds = ssdRepository.findTop5ByPriceLessThanEqualOrderByPriceDesc(ssdBudget);
+        List<Mainboard> mbs = mainboardRepository.findTop10ByPriceLessThanEqualOrderByPriceDesc(mbBudget);
+        List<Power> powers = powerRepository.findTop5ByPriceLessThanEqualOrderByPriceDesc(powerBudget);
+        List<Case> cases = caseRepository.findTop5ByPriceLessThanEqualOrderByPriceDesc(budget);
 
-        // 가장 비싼(=성능 좋은) 부품 선택
-        Cpu cpu = cpus.stream()
-                .max(Comparator.comparingLong(Cpu::getPrice))
-                .orElseThrow();
+        List<ResponseDTO.Recommendation> results = new java.util.ArrayList<>();
 
-        Gpu gpu = gpus.stream()
-                .max(Comparator.comparingLong(Gpu::getPrice))
-                .orElseThrow();
+        // 3️⃣ 조합 생성 (CPU 기준으로 돌림)
+        for (Cpu cpu : cpus) {
+            for (Mainboard mb : mbs) {
 
-        Ram ram = rams.stream()
-                .max(Comparator.comparingLong(Ram::getPrice))
-                .orElseThrow();
+                // 🔥 호환성 체크 (핵심)
+                if (!cpu.getSocketType().equals(mb.getSocketType())) continue;
 
-        // 추천 1 (가성비)
-        ResponseDTO.Recommendation rec1 = new ResponseDTO.Recommendation(
-                "가성비 추천",
-                cpu.getPrice() + gpu.getPrice() + ram.getPrice(),
-                List.of(
-                        new ResponseDTO.PartDetail("CPU", cpu.getName(), cpu.getPrice(), "AMD/Intel", "자동 추천"),
-                        new ResponseDTO.PartDetail("GPU", gpu.getName(), gpu.getPrice(), "NVIDIA/AMD", "자동 추천"),
-                        new ResponseDTO.PartDetail("RAM", ram.getName(), ram.getPrice(), "삼성/하이닉스", "자동 추천")
-                )
+                for (Gpu gpu : gpus) {
+                    for (Ram ram : rams) {
+                        for (Ssd ssd : ssds) {
+                            for (Power power : powers) {
+                                for (Case pcCase : cases) {
+
+                                    long total =
+                                            cpu.getPrice() +
+                                                    gpu.getPrice() +
+                                                    ram.getPrice() +
+                                                    ssd.getPrice() +
+                                                    mb.getPrice() +
+                                                    power.getPrice() +
+                                                    pcCase.getPrice();
+
+                                    // 💰 예산 초과 컷
+                                    if (total > budget) continue;
+
+                                    // 🔥 점수 계산 (간단 버전)
+                                    long score = gpu.getPrice() * 2 + cpu.getPrice();
+
+                                    results.add(
+                                            new ResponseDTO.Recommendation(
+                                                    "추천 조합",
+                                                    total,
+                                                    List.of(
+                                                            new ResponseDTO.PartDetail("CPU", cpu.getName(), cpu.getPrice(), "", ""),
+                                                            new ResponseDTO.PartDetail("GPU", gpu.getName(), gpu.getPrice(), "", ""),
+                                                            new ResponseDTO.PartDetail("RAM", ram.getName(), ram.getPrice(), "", ""),
+                                                            new ResponseDTO.PartDetail("SSD", ssd.getName(), ssd.getPrice(), "", ""),
+                                                            new ResponseDTO.PartDetail("MAINBOARD", mb.getName(), mb.getPrice(), "", ""),
+                                                            new ResponseDTO.PartDetail("POWER", power.getName(), power.getPrice(), "", ""),
+                                                            new ResponseDTO.PartDetail("CASE", pcCase.getName(), pcCase.getPrice(), "", "")
+                                                    )
+                                            )
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4️⃣ 상위 N개만 반환
+        results.sort((a, b) -> Long.compare(b.totalEstimatedPrice(), a.totalEstimatedPrice()));
+
+        return new ResponseDTO.ResultList(
+                results.stream().limit(3).toList()
         );
-
-        // 추천 2 (성능형 → GPU 조금 더 좋은 걸로)
-        Gpu highGpu = gpuRepository.findAll().stream()
-                .max(Comparator.comparingLong(Gpu::getPrice))
-                .orElse(gpu);
-
-        ResponseDTO.Recommendation rec2 = new ResponseDTO.Recommendation(
-                request.usage() + " 성능형 추천",
-                cpu.getPrice() + highGpu.getPrice() + ram.getPrice(),
-                List.of(
-                        new ResponseDTO.PartDetail("CPU", cpu.getName(), cpu.getPrice(), "AMD/Intel", "고성능"),
-                        new ResponseDTO.PartDetail("GPU", highGpu.getName(), highGpu.getPrice(), "NVIDIA/AMD", "상위 GPU"),
-                        new ResponseDTO.PartDetail("RAM", ram.getName(), ram.getPrice(), "삼성/하이닉스", "고용량")
-                )
-        );
-
-        return new ResponseDTO.ResultList(List.of(rec1, rec2));
     }
 }

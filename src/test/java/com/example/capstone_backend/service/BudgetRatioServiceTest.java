@@ -33,12 +33,12 @@ class BudgetRatioServiceTest {
     }
 
     @Test
-    void videoEditingAndWorkUseSameRatios() throws Exception {
-        RecommendationBudgetRatio video = row("VIDEO_EDITING", 2_000_000L,
+    void highEndUsesDedicatedRatios() throws Exception {
+        RecommendationBudgetRatio video = row("HIGH_END", 2_000_000L,
                 "0.134772", "0.377291", "0.070341", "0.202252", "0.144532", "0.031037", "0.025297", "0.014478");
         BudgetRatioService service = new BudgetRatioService(repository(List.of(video)));
-        assertEquals(0.377291, service.resolve("VIDEO_EDITING", 2_000_000L).gpu(), 1e-10);
-        assertEquals(0.377291, service.resolve("work", 2_000_000L).gpu(), 1e-10);
+        assertEquals(0.377291, service.resolve("HIGH_END", 2_000_000L).gpu(), 1e-10);
+        assertThrows(IllegalArgumentException.class, () -> service.resolve("VIDEO_EDITING", 2_000_000L));
     }
 
     @Test

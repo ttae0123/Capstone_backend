@@ -17,12 +17,12 @@ class MinimumBudgetCalculatorTest {
     private Gpu gpu(long price, long score, long requiredWatts) {
         Gpu value = new Gpu(); value.setId(2L); value.setPrice(price);
         value.setBenchScore(score); value.setRecommendedPower(requiredWatts);
-        value.setGpuLength(230L); return value;
+        value.setGpuLength(230L); value.setPcieType("PCIe4.0x16"); return value;
     }
     private Mainboard board(String socket, String size) {
         Mainboard value = new Mainboard(); value.setId(3L); value.setName("B760 MATX");
         value.setPrice(110_000L); value.setSocketType(socket);
-        value.setMemoryType("DDR5"); value.setSize(size); return value;
+        value.setMemoryType("DDR5"); value.setPcieType("PCIe4.0x16"); value.setSize(size); return value;
     }
     private Ram ram(long capacity, long modules, long price) {
         Ram value = new Ram(); value.setId(capacity); value.setPrice(price);
@@ -76,14 +76,35 @@ class MinimumBudgetCalculatorTest {
     }
 
     @Test
-    void videoRequires32GbAndFastOneTbSsd() {
+    void highEndRequires32GbAndOneTbSsd() {
         var cpu = cpu(1, 180_000, 30_000, "인텔 코어i5-14세대 14400", "1700");
-        assertTrue(MinimumBudgetCalculator.find("VIDEO_EDITING", parts(
+        assertTrue(MinimumBudgetCalculator.find("HIGH_END", parts(
                 cpu, ram(16, 2, 140_000), ssd(1000, 35_000, 200_000), power(700,"ATX"))).isEmpty());
-        assertTrue(MinimumBudgetCalculator.find("VIDEO_EDITING", parts(
-                cpu, ram(32, 2, 240_000), ssd(1000, 5_000, 200_000), power(700,"ATX"))).isEmpty());
-        assertTrue(MinimumBudgetCalculator.find("VIDEO_EDITING", parts(
-                cpu, ram(32, 2, 240_000), ssd(1000, 35_000, 200_000), power(700,"ATX"))).isPresent());
+        assertTrue(MinimumBudgetCalculator.find("HIGH_END", parts(
+                cpu, ram(32, 2, 240_000), ssd(500, 35_000, 200_000), power(700,"ATX"))).isEmpty());
+        assertTrue(MinimumBudgetCalculator.find("HIGH_END", parts(
+                cpu, ram(32, 2, 240_000), ssd(1000, 5_000, 200_000), power(700,"ATX"))).isPresent());
+    }
+
+    @Test
+    void highEndUsesTopDecileOfDistinctBenchmarks() {
+        var base = parts(cpu(1, 180_000, 50_000, "인텔 코어i5-14세대 14400", "1700"),
+                ram(32, 2, 240_000), ssd(1000, 35_000, 200_000), power(700,"ATX"));
+        var cpuModels = new java.util.ArrayList<Cpu>(base.cpus());
+        var gpuModels = new java.util.ArrayList<Gpu>(base.gpus());
+        for (int i = 1; i <= 19; i++) {
+            cpuModels.add(cpu(100+i, 180_000, 50_000-i*1_000,
+                    "인텔 코어i5-14세대 14400", "1700"));
+            Gpu gpu = gpu(500_000, 60_000-i*1_000, 650);
+            gpu.setId(100L+i);
+            gpuModels.add(gpu);
+        }
+        MinimumBudgetCalculator.Policy policy = MinimumBudgetCalculator.effectivePolicy(
+                "HIGH_END", cpuModels, gpuModels);
+        assertEquals(49_000L, policy.cpuBench()); // 20 unique scores -> top 2
+        assertEquals(58_000L, policy.gpuBench());
+        assertEquals(32L, policy.ramGb());
+        assertEquals(1_000L, policy.ssdGb());
     }
 
     @Test

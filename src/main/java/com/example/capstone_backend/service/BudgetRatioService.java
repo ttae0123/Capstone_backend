@@ -13,8 +13,7 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class BudgetRatioService {
-
-    private static final Set<String> VALID_USAGES = Set.of("GAMING", "OFFICE", "VIDEO_EDITING");
+    private static final Set<String> VALID_USAGES = Set.of("GAMING", "OFFICE", "HIGH_END");
     private final RecommendationBudgetRatioRepository repository;
 
     @Transactional(readOnly = true)
@@ -25,29 +24,23 @@ public class BudgetRatioService {
         String normalized = normalizeUsage(usage);
         List<RecommendationBudgetRatio> rows = repository.findByUsageOrderByBudgetAsc(normalized);
         if (rows.isEmpty()) {
-            throw new IllegalStateException("예산 비율 DB에 " + normalized + " 데이터가 없습니다. ratio CSV 적재를 확인하세요.");
+            throw new IllegalStateException("예산 비율 DB에 " + normalized + " 데이터가 없습니다. CSV 적재를 확인하세요.");
         }
-
         RecommendationBudgetRatio selected = rows.get(0);
         long closestDistance = distance(selected.getBudget(), requestedBudget);
         for (RecommendationBudgetRatio row : rows) {
-            long distance = distance(row.getBudget(), requestedBudget);
-            if (distance < closestDistance) {
+            long d = distance(row.getBudget(), requestedBudget);
+            if (d < closestDistance) {
                 selected = row;
-                closestDistance = distance;
+                closestDistance = d;
             }
         }
         return toAllocation(selected);
     }
 
     public static String normalizeUsage(String usage) {
-        if (usage == null || usage.isBlank()) {
-            return "GAMING";
-        }
+        if (usage == null || usage.isBlank()) return "GAMING";
         String normalized = usage.trim().toUpperCase(java.util.Locale.ROOT);
-        if (normalized.equals("WORK")) {
-            normalized = "VIDEO_EDITING";
-        }
         if (!VALID_USAGES.contains(normalized)) {
             throw new IllegalArgumentException("지원하지 않는 usage: " + usage);
         }
@@ -77,16 +70,12 @@ public class BudgetRatioService {
         if (sum.subtract(BigDecimal.ONE).abs().compareTo(new BigDecimal("0.000002")) > 0) {
             throw new IllegalStateException("예산 비율 합계가 1이 아닙니다: " + row.getUsage() + "/" + row.getBudget());
         }
-        return new Allocation(
-                row.getBudget(), values[0].doubleValue(), values[1].doubleValue(),
-                values[2].doubleValue(), values[3].doubleValue(),
-                values[4].doubleValue(), values[5].doubleValue(),
-                values[6].doubleValue(), values[7].doubleValue()
-        );
+        return new Allocation(row.getBudget(), values[0].doubleValue(), values[1].doubleValue(),
+                values[2].doubleValue(), values[3].doubleValue(), values[4].doubleValue(),
+                values[5].doubleValue(), values[6].doubleValue(), values[7].doubleValue());
     }
 
     public record Allocation(long referenceBudget, double cpu, double gpu, double ram,
                              double ssd, double mainboard, double power, double pcCase,
-                             double cooler) {
-    }
+                             double cooler) { }
 }

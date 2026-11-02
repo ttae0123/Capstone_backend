@@ -64,11 +64,7 @@ public class OwnedEstimateService {
         }
         // The current front end does not send 'usage'. Use the gaming policy
         // consistently rather than silently accepting an unsupported 'WORK'.
-        String usage = request.usage() == null || request.usage().isBlank()
-                ? "GAMING" : request.usage().trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("GAMING", "OFFICE", "VIDEO_EDITING").contains(usage)) {
-            throw new IllegalArgumentException("지원하지 않는 usage: " + request.usage());
-        }
+        String usage = BudgetRatioService.normalizeUsage(request.usage());
         String preferred = request.preference() == null ? ""
                 : request.preference().trim().toUpperCase(Locale.ROOT);
         long budget = request.budget();
@@ -89,7 +85,10 @@ public class OwnedEstimateService {
             throw new OwnedEstimateNotPossibleException("선택한 보유 부품끼리 규격이 호환되지 않습니다.");
         }
 
-        MinimumBudgetCalculator.Policy policy = MinimumBudgetCalculator.Policy.of(usage);
+        // 보유 부품 견적의 budget은 '추가 지출 가능 금액'이므로 전체 견적 상한을 적용하지 않는다.
+        // HIGH_END 벤치마크 절단점은 일반 자동 견적과 동일하게 조회한다.
+        MinimumBudgetCalculator.Policy policy = MinimumBudgetCalculator.effectivePolicy(
+                usage, cpuRepository.findAll(), gpuRepository.findAll());
         BudgetRatioService.Allocation ratio = budgetRatioService.resolve(usage, budget);
         double weightSum = 0;
         if (fixed.cpu() == null) weightSum += ratio.cpu();
@@ -144,7 +143,7 @@ public class OwnedEstimateService {
                 fixed.ssd() == null ? ssdRepository.findAll() : List.of(fixed.ssd()),
                 s -> (fixed.ssd() != null || hasPrice(s.getPrice()))
                         && (fixed.ssd() != null || (number(s.getCapacity()) >= policy.ssdGb()
-                        && number(s.getBenchScore()) >= policy.ssdBench())),
+                        && (policy.ssdBench() <= 0 || number(s.getBenchScore()) >= policy.ssdBench()))),
                 Ssd::getPrice,
                 s -> number(s.getBenchScore()) + number(s.getCapacity()) * 10, ssdTarget, 10,
                 fixed.ssd() != null);
@@ -401,7 +400,7 @@ public class OwnedEstimateService {
                 + Math.log1p(number(ssd.getCapacity())) * 0.3;
         double performance = switch (usage) {
             case "OFFICE" -> cpuScore * 4.5 + gpuScore * 0.5 + ramScore * 2.5 + ssdScore;
-            case "VIDEO_EDITING" -> cpuScore * 3.2 + gpuScore * 2.6 + ramScore * 2.0 + ssdScore * 1.5;
+            case "HIGH_END" -> cpuScore * 3.2 + gpuScore * 2.6 + ramScore * 2.0 + ssdScore * 1.5;
             default -> cpuScore * 2.8 + gpuScore * 4.2 + ramScore * 1.6 + ssdScore;
         };
         double preference = 0;
